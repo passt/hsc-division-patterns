@@ -1,0 +1,83 @@
+---
+title: "HSC division patterns"
+author: "PS Stumpf"
+date: ""
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+    theme: united
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message=FALSE, error=FALSE, warning=FALSE, auto.dep=TRUE,
+                      echo=TRUE, tidy=TRUE, width.cutoff=50, fig.width = 4, fig.asp = 1)
+
+suppressPackageStartupMessages({
+  library(affy)
+  library(limma)
+  library(gplots)
+  library(marray)
+  library(biomaRt)
+  library(ggplot2)
+  library(dendextend)
+  library(dendroextras)
+  library(RColorBrewer)
+  # library(scatterplot3d)
+  })
+```
+
+
+# Single-cell Arrays
+
+__Platform__:
+
+Fluidigm 96x96 Dynamic arrays
+
+__Samples__:
+
+4 weeks, 8 weeks, 1.5 yrs (various stem cell and progenitor cell populations).
+
+__Conditions__:
+
+Control and Angiopoietin1 treatments
+
+## Load normalised single-cell data
+
+Read raw expression values from tab-delimited file (E-MTAB-7504 - _pdc_raw.txt_).
+
+```{r sc_load_raw_data}
+# Load raw PDC data
+pdc.raw <- as.matrix(read.delim('../Data/pdc_raw.txt', as.is = TRUE))
+pdc.proc <- as.matrix(read.delim('../Data/pdc_processed.txt', as.is = TRUE))
+```
+
+Load cell covariates.
+
+```{r sc_load_covariate}
+pdc.covariates <- read.delim('../Data/pdc_covariates.txt', stringsAsFactors = T)
+```
+
+Normalise data by array.
+
+```{r sc_normalise_raw_data}
+# Normalisation function
+dynarray.norm <- function(x) {
+  is.na(x) <- (x > 28)
+  x <- median(x[,43], na.rm=T) - x }
+
+# Collapse covariates into factor containing array information
+dynarrays <- apply(pdc.covariates[,1:6], 1, paste, collapse = ';')
+dynarrays <- factor(dynarrays, levels=unique(dynarrays))
+
+# Normalise by array
+pdc <- by(t(pdc.raw), dynarrays, dynarray.norm)
+pdc <- t(unsplit(pdc, dynarrays))
+
+# Adjust baseline
+pdc <- pdc - min(pdc, na.rm = T)
+
+# Set NA to baseline
+pdc[is.na(pdc)] <- 0
+```
